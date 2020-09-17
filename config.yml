@@ -1,0 +1,14 @@
+server:
+  name: netserver_test
+  author: airing
+  version: 1.0
+  port: 8080
+  netTimeOutMs: 0
+
+log:
+  level: debug
+  path: ../log/
+  maxSize: 100   #mb
+  maxBackups: 20 #file count
+  maxAge: 30     #days
+  compress: true
