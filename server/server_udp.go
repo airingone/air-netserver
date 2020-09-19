@@ -13,11 +13,12 @@ const (
 
 //listen收到请求后建立的client
 type UdpClient struct {
+	server    *UdpServer
 	reqData   []byte
 	conn      *net.UDPConn
 	localAddr *net.UDPAddr
 	peerAddr  *net.UDPAddr
-	handler   NetHandler
+	//handler   NetHandler
 	timeoutMs time.Duration
 }
 
@@ -26,7 +27,7 @@ func (c *UdpClient) Handle() error {
 	ctx, canel := context.WithTimeout(context.Background(), c.timeoutMs)
 	defer canel()
 	ctx = context.WithValue(ctx, ClientAddrKey, c.peerAddr.String())
-	rspData, err := c.handler.Server(ctx, c.reqData) //业务处理
+	rspData, err := c.server.handler.Server(ctx, c.reqData) //业务处理
 	if err == nil && len(rspData) > 0 {
 		if len(rspData) > UdpMaxRecvbuf {
 			log.Info("[NETSERVER]: Handle udp send packet too max, %d", len(rspData))
@@ -37,7 +38,10 @@ func (c *UdpClient) Handle() error {
 		} else {
 			log.Info("[NETSERVER]: Handle udp send packet err")
 		}
+	} else {
+		log.Error("[NETSERVER]: Handle udp process err, %+v", err)
 	}
+	log.Info("[NETSERVER]: succ, stat:recvbyte=%d, recvcnt=%d, sendbytes=%d, sendcnt%d", RecvBytesUdp, RecvPkgsUdp, SendBytesUdp, SendPkgsUdp)
 
 	return nil
 }
@@ -55,7 +59,6 @@ type UdpServer struct {
 }
 
 func (s *UdpServer) ListenAndServe() error {
-	var netDelay time.Duration
 	//listen udp
 	conn, err := net.ListenUDP("udp", s.addr)
 	if err != nil {
@@ -64,6 +67,7 @@ func (s *UdpServer) ListenAndServe() error {
 	s.conn = conn
 	defer s.conn.Close()
 
+	var netDelay time.Duration
 	rBuf := make([]byte, UdpMaxRecvbuf)
 	for !s.stoping {
 		rNum, rAddr, err := s.conn.ReadFromUDP(rBuf)
@@ -81,12 +85,13 @@ func (s *UdpServer) ListenAndServe() error {
 				if netDelay > 1*time.Second {
 					netDelay = 1 * time.Second
 				}
-				time.Sleep(netDelay) //错误时一定delay
+				time.Sleep(netDelay) //错误时delay
 				continue
 			}
 			log.Info("[NETSERVER]: ListenAndServeUdp ReadFromUDP err, err: %+v", err)
 			break //其他错误则退出
 		}
+		netDelay = 0
 
 		//限频处理
 		if !s.limiter.Acquire() {
@@ -102,19 +107,21 @@ func (s *UdpServer) ListenAndServe() error {
 
 		//创建src client
 		rClient := &UdpClient{
+			server:    s,
 			reqData:   make([]byte, rNum, rNum),
 			localAddr: s.addr,
 			peerAddr:  rAddr,
 			conn:      s.conn,
 			timeoutMs: s.timeoutMs,
-			handler:   s.handler,
 		}
 		copy(rClient.reqData, rBuf[0:rNum])
-		err = s.workerPoll.Put(rClient)
+		err = s.workerPoll.Put(rClient) //使用协程池
+		//go rClient.handler.Server(context.Background(), rClient.reqData)
 		if err != nil {
 			_, _ = rClient.conn.WriteToUDP([]byte("server worker rate limit"), rAddr)
 		}
 	}
+	log.Error("[NETSERVER]: tcp server close")
 
 	return nil
 }
@@ -142,7 +149,7 @@ func ListenAndServeUdp(addr string, checker NetChecker, limiter NetLimiter, hand
 		handler:    handler,
 		workerPoll: NewWorkPool(capacity),
 		addr:       listenAddr,
-		timeoutMs:  timeoutMs * time.Millisecond,
+		timeoutMs:  timeoutMs,
 		stoping:    false,
 	}
 

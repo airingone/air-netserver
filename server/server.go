@@ -4,6 +4,7 @@ import "context"
 
 const (
 	ClientAddrKey = "clientAddr"
+	ServerAddrKey = "serverAddr"
 )
 
 //网络包checker

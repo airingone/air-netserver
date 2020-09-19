@@ -53,12 +53,12 @@ func (p *WorkerPool) run() {
 	atomic.AddUint64(&p.runingWorkers, 1)
 
 	go func() { //启动协程等待执行任务
-		defer atomic.AddUint64(&p.runingWorkers, ^uint64(0))
 		defer func() {
 			if r := recover(); r != nil {
 				log.PanicTrack()
 			}
 		}()
+		defer atomic.AddUint64(&p.runingWorkers, ^uint64(0))
 
 		for {
 			select { //循环等待chan数据

@@ -42,7 +42,7 @@ func NewTokenBucketLimiter(capacity int64) NetLimiter {
 	}
 	l := &TokenBucketLimiter{capacity: capacity, avail: 0}
 	go func() {
-		for { //没秒重新设置值
+		for { //每秒重新设置值
 			time.Sleep(time.Second)
 			atomic.StoreInt64(&l.avail, 0)
 		}
