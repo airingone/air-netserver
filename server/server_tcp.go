@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+const (
+	TcpKeepAlive = "keepalive"
+)
+
+var TcpKeepAliveLen = len([]byte("keepalive"))
+
 func init() {
 	TcpRecvBufPool = &sync.Pool{
 		New: func() interface{} {
@@ -163,6 +169,8 @@ func (c *TcpClient) Handle() error {
 		TcpPushDeleteClient(c.peerAddr, c)
 	}
 
+	log.Info("[NETSERVER]: close connect, client addr: %s", c.peerAddr)
+
 	return nil
 }
 
@@ -181,8 +189,24 @@ func (c *TcpClient) readPacket(ctx context.Context) {
 
 	var nRead int
 	for !c.server.stoping {
-		_ = c.conn.SetReadDeadline(time.Now().Add(c.server.idleTimeout))
+		//_ = c.conn.SetReadDeadline(time.Now().Add(c.server.idleTimeout))
+		_ = c.conn.SetReadDeadline(time.Now().Add(300 * time.Second))
 		num, err := c.conn.Read(recvBuf[nRead:])
+		if num >= TcpKeepAliveLen && string(recvBuf[0:TcpKeepAliveLen]) == TcpKeepAlive {
+			select {
+			case <-ctx.Done():
+				return
+			case c.cout <- []byte("keepalive"):
+				log.Info("[NETSERVER]: keepalive")
+			}
+
+			if num > TcpKeepAliveLen {
+				num -= TcpKeepAliveLen
+				copy(recvBuf, recvBuf[TcpKeepAliveLen:])
+			} else {
+				continue
+			}
+		}
 		//限频处理
 		if !c.server.limiter.Acquire() {
 			log.Info("[NETSERVER]: ListenAndServeTcp limiter.Acquire() is true, client addr: %s", c.peerAddr)
@@ -193,7 +217,7 @@ func (c *TcpClient) readPacket(ctx context.Context) {
 			if c.server.stoping {
 				break
 			}
-			log.Info("[NETSERVER]: tcp conn close, client addr: %s", c.peerAddr)
+			log.Info("[NETSERVER]: tcp conn close, client addr: %s, err: %+v", c.peerAddr, err)
 			return
 		}
 		nRead += num
@@ -208,7 +232,7 @@ func (c *TcpClient) readPacket(ctx context.Context) {
 		for {
 			pkgLen, err := c.server.checker.Check(recvBuf[index:nRead])
 			if err != nil || pkgLen < 0 {
-				log.Info("[NETSERVER]: checker.Check err, client addr: %s", c.peerAddr)
+				log.Info("[NETSERVER]: checker.Check err, client addr: %s, err: %+v, data: %s", c.peerAddr, err, string(recvBuf[index:nRead]))
 				return //数据格式错误或超长，关闭当前连接，需client重新建立连接
 			}
 
@@ -298,6 +322,7 @@ func (c *TcpClient) writePacket(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case rsp := <-c.cout:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(c.server.idleTimeout))
 			num, err := c.conn.Write(rsp)
 			if err != nil {
 				return
@@ -373,6 +398,7 @@ func (s *TcpServer) ListenAndServe() error {
 			_ = client.conn.Close()
 		}
 	}
+
 	log.Error("[NETSERVER]: tcp server close")
 
 	return nil

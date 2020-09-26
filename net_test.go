@@ -101,3 +101,17 @@ func TestCommonUdpServer(t *testing.T) {
 	RegisterCommonFuncHandler(config.Name, "getuserinfo", HandleGetUserInfo)
 	CommonListenAndServeUdp(config) //启动服务
 }
+
+//tcp server测试
+func TestCommonTcpServer(t *testing.T) {
+	config.InitConfig()                     //配置文件初始化
+	log.InitLog(config.GetLogConfig("log")) //日志初始化
+	airetcd.RegisterLocalServerToEtcd(config.GetString("server.name"),
+		config.GetUInt32("server.port"), config.GetStringSlice("etcd.addrs")) //将服务注册到etcd集群
+
+	//注册服务handler
+	config := config.GetServerConfig("server")
+	log.Info("config: %+v", config)
+	RegisterCommonFuncHandler(config.Name, "getuserinfo", HandleGetUserInfo)
+	CommonListenAndServeTcp(config) //启动服务
+}

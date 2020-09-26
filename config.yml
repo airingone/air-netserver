@@ -3,9 +3,10 @@ server:
   author: airing
   version: 1.0
   port: 8045
-  netTimeOutMs: 0
+  netTimeOutMs: 5000
   capacityPool: 10000
   capacityLimit: 10000
+  idleTimeoutMs: 900000
 
 log:
   level: debug

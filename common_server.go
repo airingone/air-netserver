@@ -88,9 +88,10 @@ func (c *CommonTcpChecker) Check(data []byte) (int, error) {
 		return -1, errors.New("packet err")
 	}
 	if data[0] != PacketStart {
-		return -1, errors.New("packet format err")
+		return -1, errors.New("start packet format err")
 	}
-	buf := bytes.NewBuffer(data[1:13])
+	//buf := bytes.NewBuffer(data[1:14])
+	buf := bytes.NewBuffer(data[1 : dataLen-1])
 	var serverNameLen, cmdLen, bodyLen uint32
 	if err := binary.Read(buf, binary.BigEndian, &serverNameLen); err != nil {
 		return -1, errors.New("packet read pkgLen err")
@@ -98,7 +99,7 @@ func (c *CommonTcpChecker) Check(data []byte) (int, error) {
 	if err := binary.Read(buf, binary.BigEndian, &cmdLen); err != nil {
 		return -1, errors.New("packet read pkgLen err")
 	}
-	if err := binary.Read(buf, binary.BigEndian, &dataLen); err != nil {
+	if err := binary.Read(buf, binary.BigEndian, &bodyLen); err != nil {
 		return -1, errors.New("packet read pkgLen err")
 	}
 
@@ -108,7 +109,7 @@ func (c *CommonTcpChecker) Check(data []byte) (int, error) {
 	}
 
 	if data[pkgLen-1] != PacketEnd {
-		return -1, errors.New("packet format err")
+		return -1, errors.New("end packet format err")
 	}
 
 	return int(pkgLen), nil
