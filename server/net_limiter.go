@@ -5,25 +5,29 @@ import (
 	"sync/atomic"
 	"time"
 )
+//限频handle
 
 //默认限频 不做限频
 type DefaultLimiter struct {
 }
 
+//默认不限
 func (l *DefaultLimiter) Acquire() bool {
 	return true
 }
 
+//创建默认limit
 func NewDefaultLimiter() NetLimiter {
 	return &DefaultLimiter{}
 }
 
-// TokenBucketLimiter 令牌桶算法限频器 秒级控制速率
+//TokenBucketLimiter 令牌桶算法限频器 秒级控制速率
 type TokenBucketLimiter struct {
 	capacity int64 //限频值
 	avail    int64 //当前时间值
 }
 
+//限频判断
 func (l *TokenBucketLimiter) Acquire() bool {
 	if l == nil {
 		return true
@@ -35,7 +39,8 @@ func (l *TokenBucketLimiter) Acquire() bool {
 	return true
 }
 
-// NewTokenBucketLimiter 新建一个容量为capacity的令牌桶算法限频器
+//NewTokenBucketLimiter 新建一个容量为capacity的令牌桶算法限频器
+//capacity: 容量
 func NewTokenBucketLimiter(capacity int64) NetLimiter {
 	if capacity <= 0 {
 		return nil
@@ -51,15 +56,15 @@ func NewTokenBucketLimiter(capacity int64) NetLimiter {
 	return l
 }
 
-// LeakyBucketLimiter 漏桶算法限频器 秒级控制速率
+//LeakyBucketLimiter 漏桶算法限频器 秒级控制速率
 type LeakyBucketLimiter struct {
-	lastAccessTime time.Time
-	capacity       int64
-	avail          int64
+	lastAccessTime time.Time   //上一时间点
+	capacity       int64       //容量
+	avail          int64       //当前量
 	mu             sync.Mutex
 }
 
-// Acquire 漏桶算法限频器实现。
+//Acquire 漏桶算法限频器实现。
 func (l *LeakyBucketLimiter) Acquire() bool {
 	if l == nil {
 		return true
@@ -87,7 +92,7 @@ func (l *LeakyBucketLimiter) Acquire() bool {
 	return false
 }
 
-// NewLeakyBucketLimiter 新建一个容量为capacity的漏桶算法限频器
+//NewLeakyBucketLimiter 新建一个容量为capacity的漏桶算法限频器
 func NewLeakyBucketLimiter(capacity int64) NetLimiter {
 	if capacity <= 0 {
 		return nil

@@ -19,6 +19,7 @@ type WorkerHandler interface {
 	Handle() error
 }
 
+//worker任务对象
 type WorkerTask struct {
 	Handler WorkerHandler
 }
@@ -33,6 +34,7 @@ type WorkerPool struct {
 }
 
 //创建
+//capacity: 限频值
 func NewWorkPool(capacity uint64) *WorkerPool {
 	if capacity < 0 {
 		capacity = WorkerPoolDefaultCapacity
@@ -73,6 +75,7 @@ func (p *WorkerPool) run() {
 }
 
 //add任务
+//handle: 工作handle
 func (p *WorkerPool) Put(handle WorkerHandler) error {
 	if p.state != WorkerPoolStateRun {
 		return errors.New("WorkerPool is stop")

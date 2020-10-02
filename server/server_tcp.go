@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	TcpKeepAlive = "keepalive"
+	TcpKeepAlive = "keepalive" //心跳包网络包
 )
-
 var TcpKeepAliveLen = len([]byte("keepalive"))
 
 func init() {
+	//初始化tcp接受buf池
 	TcpRecvBufPool = &sync.Pool{
 		New: func() interface{} {
 			return make([]byte, TcpMaxRecvbuf)
@@ -25,21 +25,23 @@ func init() {
 
 //psuh chan的数据结构
 type TcpPushData struct {
-	addr string
-	data []byte
+	addr string //地址
+	data []byte //数据
 }
 
 //用于push功能
 type TcpPush struct {
-	server  *TcpServer
+	server  *TcpServer            //服务对象
 	cPush   chan TcpPushData      //push消息通道
 	mClient map[string]*TcpClient //缓冲连接
 	rmu     sync.RWMutex
 }
 
-var tcpPush *TcpPush
+var tcpPush *TcpPush //push
 
 //连接保存在session
+//addr: 地址
+//client: tcp client
 func TcpPushAddClient(addr string, client *TcpClient) error {
 	if tcpPush == nil {
 		return errors.New("tcp push not init")
@@ -52,7 +54,8 @@ func TcpPushAddClient(addr string, client *TcpClient) error {
 }
 
 //连接从session删除
-func TcpPushDeleteClient(addr string, client *TcpClient) error {
+//addr: 地址
+func TcpPushDeleteClient(addr string) error {
 	if tcpPush == nil {
 		return errors.New("tcp push not init")
 	}
@@ -64,6 +67,7 @@ func TcpPushDeleteClient(addr string, client *TcpClient) error {
 }
 
 //从session中获取连接并发送请求
+//data: push data
 func (p *TcpPush) writeClient(data TcpPushData) error {
 	p.rmu.RLock()
 	defer p.rmu.RUnlock()
@@ -81,6 +85,7 @@ func (p *TcpPush) writeClient(data TcpPushData) error {
 }
 
 //初始化push
+//server: 建立连接的server对象
 func InitTcpPush(server *TcpServer) {
 	push := &TcpPush{
 		server:  server,
@@ -107,6 +112,8 @@ func InitTcpPush(server *TcpServer) {
 }
 
 //发起push，业务逻辑调用
+//addr: 地址
+//data: 数据
 func PushDataToClient(addr string, data []byte) error {
 	if tcpPush == nil {
 		return errors.New("tcp push not init")
@@ -131,16 +138,16 @@ func PushDataToClient(addr string, data []byte) error {
 var TcpRecvBufPool *sync.Pool
 
 const (
-	TcpMaxRecvbuf = 1024 * 128 //128k
+	TcpMaxRecvbuf = 1024 * 128 //tcp接受buf最大值，128k
 )
 
 //listen收到请求后建立的client
 type TcpClient struct {
-	server    *TcpServer
-	conn      net.Conn //client conn
-	peerAddr  string   //clinet addr
-	localAddr *net.TCPAddr
-	cancelCtx context.CancelFunc
+	server    *TcpServer   //tcp server
+	conn      net.Conn     //client conn
+	peerAddr  string       //clinet addr
+	localAddr *net.TCPAddr //本地服务地址
+	cancelCtx context.CancelFunc //ctx
 	cin       chan []byte //read data chan
 	cout      chan []byte //write data chan
 	wg        sync.WaitGroup
@@ -166,7 +173,7 @@ func (c *TcpClient) Handle() error {
 	c.wg.Wait()
 
 	if c.server.isPush { //delete client to push
-		TcpPushDeleteClient(c.peerAddr, c)
+		TcpPushDeleteClient(c.peerAddr)
 	}
 
 	log.Info("[NETSERVER]: close connect, client addr: %s", c.peerAddr)
@@ -338,14 +345,15 @@ type TcpServer struct {
 	limiter     NetLimiter  //限流函数
 	handler     NetHandler  //业务处理函数
 	workerPoll  *WorkerPool //工作协程池
-	addr        *net.TCPAddr
-	listen      *net.TCPListener
-	timeoutMs   time.Duration
-	idleTimeout time.Duration //长连接维持时间，比如5min没请求则关闭连接
-	stoping     bool
+	addr        *net.TCPAddr //地址
+	listen      *net.TCPListener //listen
+	timeoutMs   time.Duration    //timeout
+	idleTimeout time.Duration    //长连接维持时间，比如5min没请求则关闭连接
+	stoping     bool //stop state
 	isPush      bool //是否开启push
 }
 
+//listen
 func (s *TcpServer) ListenAndServe() error {
 	//listen tcp
 	conn, err := net.ListenTCP("tcp", s.addr)
@@ -414,6 +422,13 @@ func (s *TcpServer) Shutdown() error {
 }
 
 //为tcp统一的Listen接口，根据自身协议需要需要实现checker，limiter，handler
+//addr: 网络地址
+//checker: 数据包check handler
+//limiter: 限频handler
+//timeoutMs: timeout
+//idleTimeout: 长连接活跃超时
+//capacity: 限频值
+//isPush: 是否启动push
 func ListenAndServeTcp(addr string, checker NetChecker, limiter NetLimiter, handler NetHandler,
 	timeoutMs time.Duration, idleTimeout time.Duration, capacity uint64, isPush bool) {
 	netAddr, err := net.ResolveTCPAddr("tcp", addr)

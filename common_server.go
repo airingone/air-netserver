@@ -257,6 +257,7 @@ func CommonListenAndServeUdp(config config.ConfigServer) {
 }
 
 //启动common tcp服务
+//config: 网络配置
 func CommonListenAndServeTcp(config config.ConfigServer) {
 	check := NewCommonTcpChecker()
 	limit := server.NewTokenBucketLimiter(int64(config.CapacityLimit))

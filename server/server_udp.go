@@ -13,13 +13,13 @@ const (
 
 //listen收到请求后建立的client
 type UdpClient struct {
-	server    *UdpServer
-	reqData   []byte
-	conn      *net.UDPConn
-	localAddr *net.UDPAddr
-	peerAddr  *net.UDPAddr
+	server    *UdpServer   //server对象
+	reqData   []byte       //请求包
+	conn      *net.UDPConn //conn
+	localAddr *net.UDPAddr //本地地址
+	peerAddr  *net.UDPAddr //client地址
 	//handler   NetHandler
-	timeoutMs time.Duration
+	timeoutMs time.Duration //timeout
 }
 
 //client handler
@@ -52,12 +52,13 @@ type UdpServer struct {
 	limiter    NetLimiter  //限流函数
 	handler    NetHandler  //业务处理函数
 	workerPoll *WorkerPool //工作协程池
-	addr       *net.UDPAddr
-	conn       *net.UDPConn
-	timeoutMs  time.Duration
-	stoping    bool
+	addr       *net.UDPAddr  //addr
+	conn       *net.UDPConn  //conn
+	timeoutMs  time.Duration //timeout
+	stoping    bool          //stop state
 }
 
+//listen
 func (s *UdpServer) ListenAndServe() error {
 	//listen udp
 	conn, err := net.ListenUDP("udp", s.addr)
@@ -137,6 +138,12 @@ func (s *UdpServer) Shutdown() error {
 }
 
 //为udp统一的Listen接口，根据自身协议需要需要实现checker，limiter，handler
+//addr: 网络地址
+//checker: 数据包check handler
+//limiter: 限频handler
+//timeoutMs: timeout
+//idleTimeout: 长连接活跃超时
+//capacity: 限频值
 func ListenAndServeUdp(addr string, checker NetChecker, limiter NetLimiter, handler NetHandler,
 	timeoutMs time.Duration, capacity uint64) {
 	listenAddr, err := net.ResolveUDPAddr("udp4", addr)
